@@ -43,8 +43,8 @@ target_link_libraries(rmf_task_ros2
     rmf_traffic::rmf_traffic
     rmf_traffic_ros2::rmf_traffic_ros2
     rmf_websocket::rmf_websocket
-    ${rmf_task_msgs_LIBRARIES}
-    ${rclcpp_LIBRARIES}
+    ${rmf_task_msgs_TARGETS}
+    rclcpp::rclcpp
     nlohmann_json::nlohmann_json
     ${json_schema_validator_target}
 )
@@ -53,14 +53,10 @@ target_include_directories(rmf_task_ros2
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    ${rmf_traffic_ros2_INCLUDE_DIRS}
-    ${rmf_task_msgs_INCLUDE_DIRS}
-    ${rmf_websocket_INCLUDE_DIRS}
-    ${rclcpp_INCLUDE_DIRS}
 )
 
 ament_export_targets(export_rmf_task_ros2 HAS_LIBRARY_TARGET)
-ament_export_dependencies(std_msgs rmf_traffic rmf_task_msgs rclcpp nlohmann_json nlohmann_json_schema_validator rmf_api_msgs rmf_websocket)
+ament_export_dependencies(std_msgs rmf_traffic rmf_traffic_ros2 rmf_task_msgs rclcpp nlohmann_json nlohmann_json_schema_validator_vendor nlohmann_json_schema_validator rmf_api_msgs rmf_websocket)
 
 #===============================================================================
 set(TEST_UNCRUSTIFY "Off")
