@@ -76,7 +76,9 @@
 #include <iostream>
 #include <unordered_set>
 #include <optional>
+#ifdef __GLIBC__
 #include <malloc.h>
+#endif
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -466,7 +468,12 @@ public:
     // TODO(MXG): Remove this when the planner has been made more
     // memory-efficient.
     handle->_pimpl->memory_trim_timer = handle->_pimpl->node->create_wall_timer(
-      std::chrono::minutes(5), []() { malloc_trim(0); });
+      std::chrono::minutes(5), []()
+      {
+#ifdef __GLIBC__
+        malloc_trim(0);
+#endif
+      });
 
     // Zone booking release sweep.
     handle->_pimpl->zone_release_sweep_timer =

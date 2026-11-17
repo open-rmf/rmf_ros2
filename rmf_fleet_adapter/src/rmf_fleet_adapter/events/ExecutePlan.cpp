@@ -127,7 +127,8 @@ void truncate_arrival(
   std::size_t first_excluded_route = 0;
   for (const auto& c : wp.arrival_checkpoints())
   {
-    first_excluded_route = std::max(first_excluded_route, c.route_id+1);
+    first_excluded_route =
+      std::max<std::size_t>(first_excluded_route, c.route_id+1);
     auto& r = previous_itinerary.at(c.route_id);
     auto& t = r.trajectory();
 
