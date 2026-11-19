@@ -2,6 +2,13 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.0 (2026-11-13)
+-------------------
+* fix old cmake target for websocket and update other cmake vars (`#580 <https://github.com/open-rmf/rmf_ros2/issues/580>`_)
+* Fix typos in docs, launch args, log messages and comments (`#568 <https://github.com/open-rmf/rmf_ros2/issues/568>`_)
+  Co-authored-by: Mosiwon <Lots-ninety-nine@users.noreply.github.com>
+* Contributors: Aaron Chong, Mosiwon
+
 2.14.0 (2026-09-26)
 -------------------
 * Support both JSON schema validator target names (`#541 <https://github.com/open-rmf/rmf_ros2/issues/541>`_)
