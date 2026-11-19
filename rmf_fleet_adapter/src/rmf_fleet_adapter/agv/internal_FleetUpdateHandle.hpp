@@ -456,8 +456,6 @@ public:
       nullptr, nullptr, nullptr);
 
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
-    handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
-    handle->fleet_state_update_period(std::chrono::seconds(1));
 
     // Sometimes difficult negotiations end up seizing an exceedingly large
     // amount of RAM. This function is used to allow the operating system
@@ -669,6 +667,9 @@ public:
     handle->_pimpl->fleet_log_update_pub =
       handle->_pimpl->node->create_publisher<FleetLogUpdateMsg>(
       FleetLogUpdateTopicName, reliable_transient_qos.keep_last(100));
+
+    handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
+    handle->fleet_state_update_period(std::chrono::seconds(1));
 
     // Add PerformAction event to deserialization
     auto validator = handle->_pimpl->deserialization.make_validator_shared(
