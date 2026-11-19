@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - lyrical
   workflow_dispatch:
     inputs:
       ros_distribution:
@@ -12,7 +12,7 @@ on:
       repos_branch_override:
         description: 'Branch of open-rmf/rmf for rmf.repos (auto = match ros_distribution)'
         type: string
-        default: 'main'
+        default: 'auto'
   schedule:
     - cron: '23 0 * * *'
 
@@ -28,5 +28,6 @@ jobs:
             rmf_task_ros2
             rmf_traffic_ros2
             rmf_websocket
+      dist-matrix: '[{"ros_distribution": "lyrical"}]'
       ros-distribution: ${{ inputs.ros_distribution || '' }}
-      repos-branch-override: ${{ inputs.repos_branch_override || 'main' }}
+      repos-branch-override: ${{ inputs.repos_branch_override || 'auto' }}
