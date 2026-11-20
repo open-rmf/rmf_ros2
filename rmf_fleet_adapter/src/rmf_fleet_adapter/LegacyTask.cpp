@@ -22,7 +22,9 @@
 
 #include <rxcpp/rx-observable.hpp>
 
+#ifdef __GLIBC__
 #include <malloc.h>
+#endif
 
 namespace rmf_fleet_adapter {
 
@@ -157,7 +159,9 @@ void LegacyTask::_start_next_phase()
     //
     // TODO(MXG): Remove this when the planner has been made more
     // memory-efficient.
+#ifdef __GLIBC__
     malloc_trim(0);
+#endif
 
     return;
   }

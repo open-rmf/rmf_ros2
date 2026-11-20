@@ -1043,8 +1043,12 @@ std::shared_ptr<Connections> make_fleet(
       request_msg->fleet_name.empty())
         return;
 
-      connections->fleet->open_lanes(request_msg->open_lanes);
-      connections->fleet->close_lanes(request_msg->close_lanes);
+      connections->fleet->open_lanes(
+        std::vector<std::size_t>(
+          request_msg->open_lanes.begin(), request_msg->open_lanes.end()));
+      connections->fleet->close_lanes(
+        std::vector<std::size_t>(
+          request_msg->close_lanes.begin(), request_msg->close_lanes.end()));
 
       std::unordered_set<std::size_t> newly_closed_lanes;
       for (const auto& l : request_msg->close_lanes)
@@ -1097,7 +1101,10 @@ std::shared_ptr<Connections> make_fleet(
         requests.push_back(std::move(request));
       }
       connections->fleet->limit_lane_speeds(requests);
-      connections->fleet->remove_speed_limits(request_msg->remove_limits);
+      connections->fleet->remove_speed_limits(
+        std::vector<std::size_t>(
+          request_msg->remove_limits.begin(),
+          request_msg->remove_limits.end()));
     });
 
   connections->interrupt_request_sub =
