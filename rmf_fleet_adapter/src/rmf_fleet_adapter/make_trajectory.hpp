@@ -24,11 +24,31 @@
 
 #include <rmf_fleet_msgs/msg/robot_state.hpp>
 
+#include <optional>
+
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(
   const rmf_fleet_msgs::msg::RobotState& state,
   const rmf_traffic::agv::VehicleTraits& traits,
   bool& is_sitting);
+
+//==============================================================================
+/// Find the checkpoint of a trajectory made by make_trajectory(...) that a
+/// robot has reached, given a later state of that robot: its location and the
+/// points of its path that it still has to visit.
+///
+/// A checkpoint is a waypoint index of the trajectory, not a path index:
+/// Interpolate::positions puts several waypoints between two stops (turning,
+/// accelerating, cruising, braking) and leaves out path points that lie on a
+/// straight line. The robot's location is projected onto the trajectory, up to
+/// the next path point that it still has to visit, and the result is the last
+/// waypoint that the robot has passed. If the robot is at a stop, where it may
+/// still be turning, the result is the waypoint where it arrived there.
+///
+/// Returns std::nullopt if the trajectory has fewer than two waypoints.
+std::optional<std::size_t> reached_checkpoint(
+  const rmf_traffic::Trajectory& trajectory,
+  const rmf_fleet_msgs::msg::RobotState& state);
 
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(

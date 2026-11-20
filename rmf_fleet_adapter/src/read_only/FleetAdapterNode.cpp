@@ -250,6 +250,19 @@ bool FleetAdapterNode::handle_delay(
 
   auto& entry = *it->second;
 
+  // Tell the schedule which checkpoint of its route the robot has reached, so
+  // that robots whose plans wait for it know when it has passed.
+  const auto report_progress = [&]()
+    {
+      const auto checkpoint =
+        reached_checkpoint(entry.route->trajectory(), state);
+      if (!checkpoint.has_value())
+        return;
+
+      auto& participant = entry.schedule->participant();
+      participant.reached(participant.current_plan_id(), 0, *checkpoint);
+    };
+
   if (entry.path.size() < state.path.size())
   {
     // If the state has more points in its path than what is remembered from
@@ -338,7 +351,8 @@ bool FleetAdapterNode::handle_delay(
     // artifact of the estimating and not indicative of a real delay.
     //
     // We will keep the current trajectory as it is in the schedule to avoid
-    // needless schedule noise.
+    // needless schedule noise, but still report how far along it the robot is.
+    report_progress();
     return true;
   }
 
@@ -395,16 +409,7 @@ bool FleetAdapterNode::handle_delay(
   }
 
   entry.schedule->push_delay(time_difference);
-
-  const auto route_size = entry.route->trajectory().size();
-  const auto remaining_path_size = state.path.size();
-  if (route_size > remaining_path_size)
-  {
-    entry.schedule->participant().reached(
-      entry.schedule->participant().current_plan_id(),
-      0,
-      route_size - remaining_path_size - 1);
-  }
+  report_progress();
 
   // Return true to indicate that the delay has been handled.
   return true;

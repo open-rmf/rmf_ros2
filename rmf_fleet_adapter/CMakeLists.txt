@@ -145,6 +145,7 @@ if (BUILD_TESTING)
       test/tasks/test_Delivery.cpp
       test/tasks/test_Loop.cpp
       test/test_Task.cpp
+      test/test_reached_checkpoint.cpp
     TIMEOUT 300
   )
   target_include_directories(test_rmf_fleet_adapter
