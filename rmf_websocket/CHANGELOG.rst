@@ -2,8 +2,8 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.7.3 (2026-11-23)
+------------------
 * Fix spelling: occured -> occurred in rmf_websocket exception logs (`#533 <https://github.com/open-rmf/rmf_ros2/issues/533>`_)
 * Revert "Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)"
 * Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)

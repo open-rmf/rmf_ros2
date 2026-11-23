@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.7.3 (2026-11-23)
+------------------
 * Checks idle behavior before executing emergency charge (`#512 <https://github.com/open-rmf/rmf_ros2/issues/512>`_)
 * Retreat to charger if there will not be enough charge for the next task (`#423 <https://github.com/open-rmf/rmf_ros2/issues/423>`_)
 * Fix phase key for skip requests (`#543 <https://github.com/open-rmf/rmf_ros2/issues/543>`_)
