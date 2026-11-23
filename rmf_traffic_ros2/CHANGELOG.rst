@@ -2,6 +2,18 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Set schedule node ID when changes are explicitly requested (`#538 <https://github.com/open-rmf/rmf_ros2/issues/538>`_)
+* Revert "Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)"
+* Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)
+  * Fix cumulative delay calculation in EasyTrafficLight (`#524 <https://github.com/open-rmf/rmf_ros2/issues/524>`_)
+  * Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
+  * Fix spelling: occured -> occurred in rmf_websocket exception logs (`#533 <https://github.com/open-rmf/rmf_ros2/issues/533>`_)
+  * Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
+  * Set schedule node ID when changes are explicitly requested (`#538 <https://github.com/open-rmf/rmf_ros2/issues/538>`_)
+* Contributors: Aaron Chong, Arjo Chakravarty, Grey
+
 2.7.2 (2024-06-18)
 ------------------
 

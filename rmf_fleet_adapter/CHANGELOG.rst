@@ -2,6 +2,30 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Checks idle behavior before executing emergency charge (`#512 <https://github.com/open-rmf/rmf_ros2/issues/512>`_)
+* Retreat to charger if there will not be enough charge for the next task (`#423 <https://github.com/open-rmf/rmf_ros2/issues/423>`_)
+* Fix phase key for skip requests (`#543 <https://github.com/open-rmf/rmf_ros2/issues/543>`_)
+* Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
+* Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
+* Fix cumulative delay calculation in EasyTrafficLight (`#524 <https://github.com/open-rmf/rmf_ros2/issues/524>`_)
+* Revert "Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)"
+* Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)
+  * Fix cumulative delay calculation in EasyTrafficLight (`#524 <https://github.com/open-rmf/rmf_ros2/issues/524>`_)
+  * Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
+  * Fix spelling: occured -> occurred in rmf_websocket exception logs (`#533 <https://github.com/open-rmf/rmf_ros2/issues/533>`_)
+  * Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
+  * Set schedule node ID when changes are explicitly requested (`#538 <https://github.com/open-rmf/rmf_ros2/issues/538>`_)
+* Merge pull request `#496 <https://github.com/open-rmf/rmf_ros2/issues/496>`_ from open-rmf/backport/494-to-jazzy
+  Backport `#494 <https://github.com/open-rmf/rmf_ros2/issues/494>`_ to jazzy
+* Fix double coordinate transformation of robot position during action execution (`#494 <https://github.com/open-rmf/rmf_ros2/issues/494>`_)
+* Merge pull request `#459 <https://github.com/open-rmf/rmf_ros2/issues/459>`_ from sauk2/ws-backport-to-jazzy
+  Backporting BroadcastServer improvements to Jazzy
+* Added RCL logging for BroadcastServer (`#458 <https://github.com/open-rmf/rmf_ros2/issues/458>`_)
+* Backport EasyFullControl behavior fixes to jazzy (`#446 <https://github.com/open-rmf/rmf_ros2/issues/446>`_)
+* Contributors: Aaron Chong, Arjo Chakravarty, Grey, Igor Stadnyk, Luca Della Vedova, Saurabh Kamat, jixiancgh, kj, yutaroha
+
 2.7.2 (2024-06-18)
 ------------------
 

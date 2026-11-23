@@ -2,6 +2,11 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Allow creating Auctioneer with node interfaces to support lifecycle nodes (`#420 <https://github.com/open-rmf/rmf_ros2/issues/420>`_)
+* Contributors: Aaron Chong
+
 2.7.2 (2024-06-18)
 ------------------
 

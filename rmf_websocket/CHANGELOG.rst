@@ -2,6 +2,22 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix spelling: occured -> occurred in rmf_websocket exception logs (`#533 <https://github.com/open-rmf/rmf_ros2/issues/533>`_)
+* Revert "Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)"
+* Backport to jazzy (`#546 <https://github.com/open-rmf/rmf_ros2/issues/546>`_)
+  * Fix cumulative delay calculation in EasyTrafficLight (`#524 <https://github.com/open-rmf/rmf_ros2/issues/524>`_)
+  * Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
+  * Fix spelling: occured -> occurred in rmf_websocket exception logs (`#533 <https://github.com/open-rmf/rmf_ros2/issues/533>`_)
+  * Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
+  * Set schedule node ID when changes are explicitly requested (`#538 <https://github.com/open-rmf/rmf_ros2/issues/538>`_)
+* Merge pull request `#459 <https://github.com/open-rmf/rmf_ros2/issues/459>`_ from sauk2/ws-backport-to-jazzy
+  Backporting BroadcastServer improvements to Jazzy
+* Added RCL logging for BroadcastServer (`#458 <https://github.com/open-rmf/rmf_ros2/issues/458>`_)
+* Fix BroadcastServer shutdown errors (`#457 <https://github.com/open-rmf/rmf_ros2/issues/457>`_)
+* Contributors: Aaron Chong, Arjo Chakravarty, Mosiwon, Saurabh Kamat
+
 2.7.2 (2024-06-18)
 ------------------
 
