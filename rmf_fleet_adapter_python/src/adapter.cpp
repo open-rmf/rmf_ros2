@@ -280,16 +280,20 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::RobotUpdateHandle::create_issue,
     py::arg("tier"),
     py::arg("category"),
-    py::arg("detail"))
+    py::arg("detail"),
+    py::call_guard<py::gil_scoped_release>())
   .def("log_info",
     &agv::RobotUpdateHandle::log_info,
-    py::arg("text"))
+    py::arg("text"),
+    py::call_guard<py::gil_scoped_release>())
   .def("log_warning",
     &agv::RobotUpdateHandle::log_warning,
-    py::arg("text"))
+    py::arg("text"),
+    py::call_guard<py::gil_scoped_release>())
   .def("log_error",
     &agv::RobotUpdateHandle::log_error,
-    py::arg("text"))
+    py::arg("text"),
+    py::call_guard<py::gil_scoped_release>())
   .def("enable_responsive_wait",
     &agv::RobotUpdateHandle::enable_responsive_wait,
     py::arg("value"))

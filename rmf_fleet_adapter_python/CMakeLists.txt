@@ -97,10 +97,48 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
+  # Test-only extension for reporting GIL regression.
+  pybind11_add_module(rmf_reporting_gil_test MODULE
+    tests/native/reporting_gil_bridge.cpp
+  )
+
+  # The test fixture uses private headers from the matching source checkout.
+  set(_rmf_fleet_adapter_source
+    "${CMAKE_CURRENT_SOURCE_DIR}/../rmf_fleet_adapter"
+  )
+
+  file(GLOB _rmf_rxcpp_candidates
+    "${_rmf_fleet_adapter_source}/rmf_rxcpp/RxCpp-*/Rx/v2/src"
+  )
+
+  find_path(_rmf_rxcpp_include_dir
+    NAMES rxcpp/rx.hpp
+    PATHS ${_rmf_rxcpp_candidates}
+    NO_DEFAULT_PATH
+  )
+
+  if(NOT _rmf_rxcpp_include_dir)
+    message(FATAL_ERROR
+      "Cannot find RxCpp headers required by reporting GIL tests"
+    )
+  endif()
+
+  target_include_directories(rmf_reporting_gil_test
+    PRIVATE
+      "${_rmf_fleet_adapter_source}/src/rmf_fleet_adapter"
+      "${_rmf_fleet_adapter_source}/rmf_rxcpp/include"
+      "${_rmf_rxcpp_include_dir}"
+  )
+
+  target_link_libraries(rmf_reporting_gil_test
+    PRIVATE
+      rmf_fleet_adapter::rmf_fleet_adapter
+  )
   set(_rmf_fleet_adapter_python_tests
     tests/unit/test_geometry.py
     tests/unit/test_graph.py
     tests/unit/test_RobotCommandHandle.py
+    tests/unit/test_reporting_gil.py
     tests/unit/test_types.py
     tests/unit/test_vehicletraits.py
   )
@@ -111,6 +149,12 @@ if(BUILD_TESTING)
       TIMEOUT 120
       WERROR ON
     )
+
+    if(_test_name STREQUAL "test_reporting_gil")
+      set_tests_properties(${_test_name} PROPERTIES
+        ENVIRONMENT "PYTHONPATH=$<TARGET_FILE_DIR:rmf_reporting_gil_test>:$ENV{PYTHONPATH}"
+      )
+    endif()
   endforeach()
 endif()
 
