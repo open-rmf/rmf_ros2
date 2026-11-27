@@ -61,6 +61,12 @@ const std::string DockSummaryTopicName = "dock_summary";
 
 const std::string NavGraphTopicName = "nav_graphs";
 const std::string LaneClosureRequestTopicName = "lane_closure_requests";
+const std::string LaneClosureSupervisorRequestTopicName =
+  "lane_closure_supervisor_requests";
+const std::string LaneClosureSupervisorHeartbeatTopicName =
+  "lane_closure_supervisor_heartbeat";
+const std::string RobotLaneClosureRequestTopicName =
+  "robot_lane_closure_requests";
 const std::string ClosedLaneTopicName = "closed_lanes";
 const std::string SpeedLimitRequestTopicName = "speed_limit_requests";
 const std::string LaneStatesTopicName = "lane_states";

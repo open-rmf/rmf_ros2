@@ -48,6 +48,7 @@
 
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
+#include <algorithm>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -1433,6 +1434,7 @@ void FleetUpdateHandle::Implementation::handle_emergency(
   if (emergency_signal)
   {
     update_emergency_planner();
+    refresh_robot_planners();
   }
 
   for (const auto& [context, _] : task_managers)
@@ -2004,13 +2006,34 @@ void FleetUpdateHandle::add_robot(
       rmf_task::State state;
       state.load_basic(start[0], charger_wp.value(), 1.0);
 
+      // The robot's own planner slots. Don't fill them here: this runs on the
+      // participant thread while the worker may be replacing the fleet
+      // planners (data race). Fill them on the worker, before the context's
+      // callbacks run there.
+      FleetUpdateHandle::Implementation::RobotPlanners robot_planners{
+        std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(),
+        std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>()};
+        
+      worker.schedule(
+        [fleet_wptr = std::weak_ptr<FleetUpdateHandle>(fleet),
+        robot_name = participant.description().name(),
+        robot_planners](const auto&)
+        {
+          const auto fleet = fleet_wptr.lock();
+          if (!fleet)
+            return;
+
+          fleet->_pimpl->robot_planners[robot_name] = robot_planners;
+          fleet->_pimpl->refresh_robot_planner(robot_name);
+        });
+
       auto context = RobotContext::make(
         std::move(command),
         std::move(start),
         std::move(participant),
         fleet->_pimpl->mirror,
-        fleet->_pimpl->planner,
-        fleet->_pimpl->emergency_planner,
+        robot_planners.planner,
+        robot_planners.emergency_planner,
         fleet->_pimpl->activation.task,
         fleet->_pimpl->task_parameters,
         fleet->_pimpl->node,
@@ -2288,6 +2311,7 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
         self->_pimpl->update_emergency_planner();
       }
 
+      self->_pimpl->refresh_robot_planners();
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
 
@@ -2345,6 +2369,7 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
         self->_pimpl->update_emergency_planner();
       }
 
+      self->_pimpl->refresh_robot_planners();
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
     });
@@ -2435,6 +2460,7 @@ auto FleetUpdateHandle::limit_lane_speeds(
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
 
+      self->_pimpl->refresh_robot_planners();
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
     });
@@ -2471,6 +2497,7 @@ void FleetUpdateHandle::remove_speed_limits(std::vector<std::size_t> requests)
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
 
+      self->_pimpl->refresh_robot_planners();
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
     });
@@ -2493,7 +2520,166 @@ void FleetUpdateHandle::Implementation::publish_lane_states() const
       .lane_index(index)
       .speed_limit(limit));
   }
+  for (const auto& [robot_name, lanes] : robot_closed_lanes)
+  {
+    rmf_fleet_msgs::msg::RobotLaneState state;
+    state.robot_name = robot_name;
+    state.closed_lanes.assign(lanes.begin(), lanes.end());
+    msg->robot_lane_states.push_back(std::move(state));
+  }
   lane_states_pub->publish(std::move(msg));
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::robot_lane_request_cb(
+  const RobotLaneRequest& msg)
+{
+  if (msg.fleet_name != name)
+    return;
+
+  RobotContextPtr context = nullptr;
+  for (const auto& [c, _] : task_managers)
+  {
+    if (c->name() == msg.robot_name)
+    {
+      context = c;
+      break;
+    }
+  }
+
+  if (!context)
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Ignoring RobotLaneRequest for unknown robot [%s] of fleet [%s]",
+      msg.robot_name.c_str(), name.c_str());
+    return;
+  }
+
+  for (const auto lane : msg.open_lanes)
+  {
+    if (std::find(msg.close_lanes.begin(), msg.close_lanes.end(), lane)
+      != msg.close_lanes.end())
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Ignoring RobotLaneRequest for robot [%s] of fleet [%s]: lane %lu is "
+        "both opened and closed",
+        msg.robot_name.c_str(), name.c_str(),
+        static_cast<unsigned long>(lane));
+      return;
+    }
+  }
+
+  // Skip lanes not in the graph, so one bad lane doesn't block the others
+  const auto num_lanes = (*planner)->get_configuration().graph().num_lanes();
+  std::stringstream skipped;
+  const auto in_graph = [&](uint64_t lane) -> bool
+    {
+      if (lane < num_lanes)
+        return true;
+      skipped << " " << lane;
+      return false;
+    };
+
+  // Compare with the robot's current closures; apply only real changes
+  auto closed = robot_closed_lanes[msg.robot_name];
+  std::vector<std::size_t> newly_closed;
+  bool changed = false;
+  for (const auto lane : msg.close_lanes)
+  {
+    if (in_graph(lane) && closed.insert(lane).second)
+    {
+      newly_closed.push_back(lane);
+      changed = true;
+    }
+  }
+  for (const auto lane : msg.open_lanes)
+  {
+    if (in_graph(lane) && closed.erase(lane) > 0)
+      changed = true;
+  }
+
+  if (!skipped.str().empty())
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "RobotLaneRequest for robot [%s] of fleet [%s]: skipping lanes not in "
+      "the graph (%lu lanes):%s",
+      msg.robot_name.c_str(), name.c_str(),
+      static_cast<unsigned long>(num_lanes), skipped.str().c_str());
+  }
+
+  if (closed.empty())
+    robot_closed_lanes.erase(msg.robot_name);
+  else
+    robot_closed_lanes[msg.robot_name] = closed;
+
+  if (!changed)
+    return;
+
+  std::stringstream ss;
+  for (const auto lane : closed)
+    ss << " " << lane;
+  RCLCPP_INFO(
+    node->get_logger(),
+    "Robot [%s] of fleet [%s]: robot-only closed lanes:%s",
+    msg.robot_name.c_str(), name.c_str(),
+    closed.empty() ? " none" : ss.str().c_str());
+
+  refresh_robot_planner(msg.robot_name);
+
+  // Like fleet-wide close_lanes/open_lanes: a close replans the robot if its
+  // route uses the lane; a reopen only updates the planner (no replan)
+  if (!newly_closed.empty())
+    context->notify_graph_change(RobotContext::GraphChange{newly_closed});
+
+  publish_lane_states();
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::refresh_robot_planner(
+  const std::string& robot_name)
+{
+  const auto slots_it = robot_planners.find(robot_name);
+  if (slots_it == robot_planners.end())
+    return;
+
+  auto& slots = slots_it->second;
+  const auto closed_it = robot_closed_lanes.find(robot_name);
+  if (closed_it == robot_closed_lanes.end())
+  {
+    *slots.planner = *planner;
+    *slots.emergency_planner = *emergency_planner;
+    return;
+  }
+
+  const auto with_robot_closures =
+    [&closed = closed_it->second](
+    const std::shared_ptr<const rmf_traffic::agv::Planner>& base)
+    -> std::shared_ptr<const rmf_traffic::agv::Planner>
+    {
+      if (!base)
+        return nullptr;
+
+      auto config = base->get_configuration();
+      for (const auto lane : closed)
+        config.lane_closures().close(lane);
+
+      return std::make_shared<const rmf_traffic::agv::Planner>(
+        config, rmf_traffic::agv::Planner::Options(nullptr));
+    };
+
+  *slots.planner = with_robot_closures(*planner);
+  *slots.emergency_planner =
+    emergency_active ? with_robot_closures(*emergency_planner) : nullptr;
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::refresh_robot_planners()
+{
+  for (const auto& [robot_name, _] : robot_planners)
+    refresh_robot_planner(robot_name);
 }
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
