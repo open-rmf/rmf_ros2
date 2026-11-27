@@ -301,6 +301,21 @@ target_link_libraries(door_supervisor
 
 # -----------------------------------------------------------------------------
 
+add_executable(lane_closure_supervisor
+  src/lane_closure_supervisor/main.cpp
+  src/lane_closure_supervisor/Node.cpp
+  src/lane_closure_supervisor/LaneHolds.cpp
+)
+
+target_link_libraries(lane_closure_supervisor
+  PRIVATE
+    rmf_fleet_adapter
+    rclcpp::rclcpp
+    ${rmf_fleet_msgs_TARGETS}
+)
+
+# -----------------------------------------------------------------------------
+
 add_library(robot_state_aggregator_main SHARED
   src/robot_state_aggregator/RobotStateAggregator.cpp
 )
@@ -477,6 +492,7 @@ install(
     mutex_group_supervisor
     experimental_lift_watchdog
     door_supervisor
+    lane_closure_supervisor
     robot_state_aggregator
     test_read_only_adapter
     open_lanes

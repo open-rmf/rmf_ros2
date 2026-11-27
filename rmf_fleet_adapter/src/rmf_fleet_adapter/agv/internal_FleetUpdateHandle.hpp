@@ -36,6 +36,8 @@
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
+#include <rmf_fleet_msgs/msg/robot_lane_request.hpp>
+#include <rmf_fleet_msgs/msg/robot_lane_state.hpp>
 #include <rmf_fleet_msgs/msg/charging_assignments.hpp>
 #include <rmf_fleet_msgs/msg/emergency_signal.hpp>
 #include <rmf_zone_msgs/msg/zone_state.hpp>
@@ -74,6 +76,7 @@
 #include <rmf_fleet_adapter/schemas/event_description__perform_action.hpp>
 
 #include <iostream>
+#include <set>
 #include <unordered_set>
 #include <optional>
 #ifdef __GLIBC__
@@ -394,6 +397,22 @@ public:
   std::unordered_map<std::size_t, double> speed_limited_lanes = {};
   std::unordered_set<std::size_t> closed_lanes = {};
 
+  // Per-robot closures, kept apart from closed_lanes
+  using RobotLaneRequest = rmf_fleet_msgs::msg::RobotLaneRequest;
+  
+  rclcpp::Subscription<RobotLaneRequest>::SharedPtr robot_lane_request_sub =
+    nullptr;
+  std::unordered_map<std::string, std::set<std::size_t>> robot_closed_lanes =
+  {};
+
+  // Each robot's planners: the fleet's, or its own if it has closures
+  struct RobotPlanners
+  {
+    SharedPlanner planner;
+    SharedPlanner emergency_planner;
+  };
+  std::unordered_map<std::string, RobotPlanners> robot_planners = {};
+
   std::shared_ptr<AllocateTasks> calculate_bid = nullptr;
   rmf_rxcpp::subscription_guard calculate_bid_subscription = {};
 
@@ -617,6 +636,26 @@ public:
       LaneStatesTopicName,
       transient_qos);
     handle->_pimpl->publish_lane_states();
+
+    // Per-robot lane closures from the lane closure supervisor
+    handle->_pimpl->robot_lane_request_sub =
+      handle->_pimpl->node->create_subscription<RobotLaneRequest>(
+      RobotLaneClosureRequestTopicName,
+      rclcpp::SystemDefaultsQoS().reliable().keep_last(100)
+      .durability_volatile(),
+      [w = handle->weak_from_this()](RobotLaneRequest::SharedPtr msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_pimpl->worker.schedule(
+          [w, msg](const auto&)
+          {
+            if (const auto self = w.lock())
+              self->_pimpl->robot_lane_request_cb(*msg);
+          });
+      });
 
     // Populate charging waypoints
     const auto& graph = (*handle->_pimpl->planner)->get_configuration().graph();
@@ -872,6 +911,25 @@ public:
             planner->clear_differential_drive_cache();
             planner->clear_inner_cache();
           }
+
+          // Planners of robots with their own closures
+          for (const auto& [_, slots] : self->_pimpl->robot_planners)
+          {
+            const auto& robot_planner = *slots.planner;
+            if (!robot_planner || robot_planner == planner)
+              continue;
+
+            const auto robot_audit = robot_planner->cache_audit();
+            const std::size_t robot_sum =
+            robot_audit.differential_drive_planner_cache_size()
+            + robot_audit.shortest_path_cache_size()
+            + robot_audit.euclidean_heuristic_cache_size();
+            if (robot_sum > *reset_size)
+            {
+              robot_planner->clear_differential_drive_cache();
+              robot_planner->clear_inner_cache();
+            }
+          }
         }
       });
 
@@ -919,6 +977,13 @@ public:
   void publish_fleet_state_topic() const;
 
   void publish_lane_states() const;
+
+  /// Apply a RobotLaneRequest for one of this fleet's robots
+  void robot_lane_request_cb(const RobotLaneRequest& msg);
+
+  /// Rebuild a robot's planners from the fleet's and its own closures
+  void refresh_robot_planner(const std::string& robot_name);
+  void refresh_robot_planners();
 
   void update_fleet() const;
 
