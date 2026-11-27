@@ -101,7 +101,7 @@ auto LegacyPhaseShim::Active::make(
   active->_parent_update = std::move(parent_update);
   active->_finished = std::move(finished);
   active->_legacy = legacy->begin();
-  // TODO(luca) Task summaries are not published anymore, revisit and remove
+  active->_state->update_status(Event::Status::Underway);
   active->_subscription = active->_legacy->observe()
     .observe_on(rxcpp::identity_same_worker(worker))
     .subscribe(
@@ -154,10 +154,8 @@ auto LegacyPhaseShim::Active::make(
       {
         if (self->_finished)
         {
-          // We don't change the event status here because that should have been
-          // done in the task summary update, and from here we don't know what
-          // kind of finish the legacy phase may have had (e.g. completed,
-          // failed, or canceled).
+          if (self->_state->status() == Event::Status::Underway)
+            self->_state->update_status(Event::Status::Completed);
           const auto finished = self->_finished;
           self->_finished = nullptr;
           finished();
